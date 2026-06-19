@@ -5,6 +5,7 @@ from bs4 import BeautifulSoup
 import urllib.parse
 import os
 from google import genai
+from openai import OpenAI
 
 app = Flask(__name__)
 
@@ -141,6 +142,38 @@ def gemini_param():
         result_text = response.text if response.text else "응답이 비어 있습니다."
     except Exception as e:
         result_text = f"Gemini 호출 중 오류: {str(e)}"
+
+    return jsonify(kakao_text(result_text))
+
+
+    # 7. 파라미터로 OpenAI GPT 연동하기 (Render 환경변수 활용)
+@app.route("/gpt-param", methods=["POST"])
+def gpt_param():
+    data = request.get_json(silent=True) or {}
+    # 카카오 빌더에서 넘겨주는 파라미터(사용자 질문) 추출
+    tt = data.get("action", {}).get("params", {}).get("파라미터", "").strip()
+
+    if not tt:
+        return jsonify(kakao_text("질문 내용이 없습니다. 다시 입력해 주세요."))
+
+    # Render에 설정된 환경변수 'OPENAI_API_KEY' 불러오기
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return jsonify(kakao_text("OPENAI_API_KEY 환경변수가 설정되지 않았습니다. Render 설정을 확인하세요."))
+
+    try:
+        # 최신 OpenAI 패키지 문법 적용
+        client = OpenAI(api_key=api_key)
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo", # 필요시 gpt-4o 등으로 변경 가능
+            messages=[
+                {"role": "system", "content": "당신은 미래 모빌리티 전문가입니다. 카카오톡 챗봇에서 답변하므로 핵심만 500자 이내로 친절하게 설명해주세요."},
+                {"role": "user", "content": tt}
+            ]
+        )
+        result_text = response.choices[0].message.content
+    except Exception as e:
+        result_text = f"GPT API 호출 중 오류가 발생했습니다: {str(e)}"
 
     return jsonify(kakao_text(result_text))
 
